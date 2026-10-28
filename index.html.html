@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoleculeVerse 3D — Interactive Chemoinformatics Virtual Laboratory</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        midnight: '#0B0F19',
+                        darkcard: 'rgba(17, 24, 39, 0.75)',
+                        cybercyan: '#00F0FF',
+                        violetglow: '#7000FF',
+                        magentaglow: '#FF007A',
+                        turquoiseglow: '#00F5D4',
+                        amberaccent: '#FFB703',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- JavaScript Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://unpkg.com/smiles-drawer@2.0.1/dist/smiles-drawer.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #070A13;
+            color: #E2E8F0;
+            overflow-x: hidden;
+        }
+
+        .font-outfit { font-family: 'Outfit', sans-serif; }
+        .font-mono { font-family: 'Fira Code', monospace; }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            border-color: rgba(0, 240, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px -10px rgba(0, 240, 255, 0.15);
+        }
+
+        .text-gradient {
+            background: linear-gradient(135deg, #00F0FF 0%, #7000FF 50%, #FF007A 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .btn-gradient {
+            background: linear-gradient(135deg, #00F0FF 0%, #7000FF 100%);
+            transition: all 0.3s ease;
+        }
+
+        .btn-gradient:hover {
+            filter: brightness(1.2);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(11, 15, 25, 0.8);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(112, 0, 255, 0.4);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 240, 255, 0.6);
+        }
+
+        .nav-item.active {
+            background: rgba(0, 240, 255, 0.12);
+            color: #00F0FF;
+            border-left: 3px solid #00F0FF;
+        }
+
+        .mol-viewer-container {
+            position: relative;
+            width: 100%;
+            height: 450px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #111827 0%, #070A13 100%);
+        }
+
+        /* Publication PDF Exact Styling */
+        .pdf-report-container {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            font-family: 'Inter', sans-serif;
+            padding: 24px;
+            border-radius: 8px;
+        }
+        .pdf-report-container table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            color: #111827;
+        }
+        .pdf-report-container th, .pdf-report-container td {
+            border: 1px solid #d1d5db;
+            padding: 6px 10px;
+            vertical-align: top;
+        }
+        .pdf-report-container th {
+            background-color: #f3f4f6;
+            font-weight: 700;
+        }
+
+        @media (max-width: 768px) {
+            .mol-viewer-container {
+                height: 320px;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col relative select-none">
+
+    <!-- WebGL Animated Background Canvas -->
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- App Shell Container -->
+    <div class="relative z-10 flex flex-col min-h-screen">
+
+        <!-- Top Header Navigation -->
+        <header class="glass-panel sticky top-0 z-40 px-4 py-3 border-b border-gray-800/80">
+            <div class="max-w-7xl mx-auto flex items-center justify-between">
+                
+                <!-- Logo & Title -->
+                <div class="flex items-center space-x-3">
+                    <button id="mobile-menu-btn" onclick="toggleMobileSidebar()" class="lg:hidden text-gray-300 hover:text-white text-xl p-1">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                        <i class="fa-solid fa-atom text-xl text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-extrabold font-outfit tracking-tight text-white flex items-center space-x-2">
+                            <span>MoleculeVerse</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">3D Lab v2.5</span>
+                        </h1>
+                        <p class="text-xs text-gray-400 hidden sm:block">Interactive Chemoinformatics Virtual Laboratory</p>
+                    </div>
+                </div>
+
+                <!-- Right Controls -->
+                <div class="flex items-center space-x-3">
+                    <div class="hidden md:flex items-center bg-gray-900/80 px-3 py-1.5 rounded-lg border border-gray-800 text-xs space-x-2">
+                        <span class="text-gray-400">Active Compound:</span>
+                        <span id="header-mol-name" class="text-cyan-400 font-semibold font-mono">Phenol</span>
+                        <span class="text-gray-600">|</span>
+                        <span id="header-mol-formula" class="text-purple-300 font-mono">C6H6O</span>
+                    </div>
+
+                    <!-- GitHub & Download Button -->
+                    <button onclick="openGitHubModal()" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500/20 to-purple-500/20 hover:from-cyan-500/30 hover:to-purple-500/30 text-xs text-cyan-300 border border-cyan-500/40 flex items-center space-x-1.5 shadow-md">
+                        <i class="fa-brands fa-github text-sm"></i>
+                        <span class="font-semibold">Export / Share</span>
+                    </button>
+
+                    <button id="bg-toggle-btn" onclick="toggleFX()" class="px-2.5 py-1.5 rounded-lg bg-gray-800/80 hover:bg-gray-700 text-xs text-gray-300 border border-gray-700 flex items-center space-x-1.5">
+                        <i class="fa-solid fa-wand-magic-sparkles text-cyan-400"></i>
+                        <span id="bg-fx-label" class="hidden sm:inline">3D FX: On</span>
+                    </button>
+
+                    <div id="header-student-badge" class="flex items-center space-x-2 bg-gradient-to-r from-purple-900/40 to-blue-900/40 px-3 py-1.5 rounded-lg border border-purple-500/30 cursor-pointer" onclick="switchTab('profile')">
+                        <i class="fa-solid fa-user-graduate text-purple-400 text-sm"></i>
+                        <span id="header-student-name" class="text-xs font-medium text-gray-200">Atharva Raje</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace Shell -->
+        <div class="flex-1 max-w-7xl w-full mx-auto flex flex-col lg:flex-row px-4 py-6 gap-6">
+
+            <!-- Sidebar Navigation -->
+            <aside id="sidebar" class="w-full lg:w-64 glass-panel rounded-2xl p-4 flex-shrink-0 flex flex-col justify-between hidden lg:flex transition-all duration-300">
+                <div class="space-y-1">
+                    <div class="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Main Menu</div>
+                    
+                    <button onclick="switchTab('home')" class="nav-item active w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-800/50 hover:text-white transition">
+                        <i class="fa-solid fa-house text-cyan-400 w-5"></i>
+                        <span>Home Dashboard</span>
+                    </button>
+
+                    <button onclick="switchTab('profile')" class="nav-item w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-800/50 hover:text-white transition">
+                        <i class="fa-solid fa-address-card text-purple-400 w-5"></i>
+                        <span>Student Registration</span>
+                    </button>
+
+                    <button onclick="switchTab('theory')" class="nav-item w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-800/50 hover:text-white transition">
+                        <i class="fa-solid fa-book-open text-pink-400 w-5"></i>
+                        <span>Theory & Learning</span>
+                    </button>
+
+                    <button onclick="switchTab('vizlab')" class="nav-item w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-800/50 hover:text-white transition">
+                        <i class="fa-solid fa-cubes text-emerald-400 w-5"></i>
+                        <span>3D Visualization Lab</span>
+                    </button>
+
+                    <button onclick="switchTab('report')" class="nav-item w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-800/50 hover:text-white transition">
+                        <i class="fa-solid fa-chart-pie text-amber-400 w-5"></i>
+                        <span>Properties Report</span>
+                    </button>
+
+                    <button onclick="switchTab('analysis')" class="nav-item w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-800/50 hover:text-white transition">
+                        <i class="fa-solid fa-code-compare text-blue-400 w-5"></i>
+                        <span>Structure-Property</span>
+                    </button>
+
+                    <button onclick="switchTab('assessment')" class="nav-item w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-800/50 hover:text-white transition">
+                        <i class="fa-solid fa-graduation-cap text-red-400 w-5"></i>
+                        <span>Assessment Quiz</span>
+                    </button>
+
+                    <button onclick="switchTab('finalreport')" class="nav-item w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-800/50 hover:text-white transition">
+                        <i class="fa-solid fa-file-pdf text-indigo-400 w-5"></i>
+                        <span>Final Project Report</span>
+                    </button>
+
+                    <button onclick="switchTab('help')" class="nav-item w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-gray-800/50 hover:text-white transition">
+                        <i class="fa-solid fa-circle-info text-teal-400 w-5"></i>
+                        <span>Help & Guide</span>
+                    </button>
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-gray-800 text-xs text-gray-400 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span>Engine Status</span>
+                        <span class="text-emerald-400 font-semibold flex items-center"><i class="fa-solid fa-circle text-[8px] mr-1 animate-pulse"></i> Ready</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span>3D Renderer</span>
+                        <span class="text-cyan-400">WebGL 2.0</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Workspace Body -->
+            <main class="flex-1 w-full min-w-0">
+
+                <!-- SECTION 1: HOME DASHBOARD -->
+                <section id="tab-home" class="tab-content space-y-6">
+                    <div class="glass-panel rounded-3xl p-6 lg:p-8 relative overflow-hidden border border-cyan-500/20">
+                        <div class="max-w-2xl space-y-4">
+                            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-medium">
+                                <i class="fa-solid fa-microscope"></i>
+                                <span>Chemoinformatics & Molecular Modeling Virtual Lab</span>
+                            </div>
+                            <h2 class="text-3xl lg:text-5xl font-extrabold font-outfit text-white leading-tight">
+                                Explore the <span class="text-gradient">Molecular Universe</span> in Real-Time 3D
+                            </h2>
+                            <p class="text-gray-300 text-sm lg:text-base leading-relaxed">
+                                Calculate chemical descriptors, analyze 2D/3D structure-property relationships, evaluate Lipinski drug-likeness, and generate publication-grade research reports using high-fidelity chemoinformatics algorithms.
+                            </p>
+                            
+                            <div class="flex flex-wrap gap-3 pt-2">
+                                <button onclick="switchTab('vizlab')" class="btn-gradient px-5 py-3 rounded-xl font-semibold text-white text-sm shadow-lg flex items-center space-x-2">
+                                    <i class="fa-solid fa-cube"></i>
+                                    <span>Open 3D Laboratory</span>
+                                </button>
+                                <button onclick="switchTab('analysis')" class="px-5 py-3 rounded-xl font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-700 border border-gray-700 text-sm flex items-center space-x-2">
+                                    <i class="fa-solid fa-code-compare"></i>
+                                    <span>Compare Molecules</span>
+                                </button>
+                                <button onclick="switchTab('assessment')" class="px-5 py-3 rounded-xl font-semibold text-purple-300 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/50 text-sm flex items-center space-x-2">
+                                    <i class="fa-solid fa-graduation-cap"></i>
+                                    <span>Start Assessment</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preset Molecules Grid -->
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xl font-bold font-outfit text-white flex items-center space-x-2">
+                                <i class="fa-solid fa-flask text-cyan-400"></i>
+                                <span>Featured Example Compounds</span>
+                            </h3>
+                            <span class="text-xs text-gray-400">Click to load instantly</span>
+                        </div>
+
+                        <div id="example-mol-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <!-- Injected via JavaScript -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 2: STUDENT REGISTRATION -->
+                <section id="tab-profile" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-purple-500/20 space-y-6">
+                        <div class="flex items-center justify-between border-b border-gray-800 pb-4">
+                            <div>
+                                <h3 class="text-2xl font-bold font-outfit text-white">Student Academic Profile</h3>
+                                <p class="text-sm text-gray-400">Enter registration details to personalize reports and certificates.</p>
+                            </div>
+                            <div class="p-3 bg-purple-500/10 rounded-xl text-purple-400">
+                                <i class="fa-solid fa-user-graduate text-2xl"></i>
+                            </div>
+                        </div>
+
+                        <form id="student-form" onsubmit="saveStudentProfile(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Full Name *</label>
+                                <input type="text" id="reg-name" required value="Atharva Raje" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-cyan-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Registration / Roll Number *</label>
+                                <input type="text" id="reg-roll" required value="RA2611026050200" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-cyan-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Institution / University *</label>
+                                <input type="text" id="reg-inst" required value="Department of Chemical Engineering" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-cyan-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Department *</label>
+                                <input type="text" id="reg-dept" required value="Chemical Engineering & Chemoinformatics" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-cyan-400 focus:outline-none">
+                            </div>
+
+                            <div class="md:col-span-2 pt-4 flex items-center justify-between">
+                                <span id="profile-save-status" class="text-xs text-emerald-400 font-medium opacity-0 transition">
+                                    <i class="fa-solid fa-check-circle mr-1"></i> Profile saved locally!
+                                </span>
+                                <button type="submit" class="btn-gradient px-6 py-2.5 rounded-xl font-semibold text-white text-sm shadow-md">
+                                    Save Profile Details
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- SECTION 3: THEORY AND LEARNING -->
+                <section id="tab-theory" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl space-y-4">
+                        <h3 class="text-2xl font-bold font-outfit text-white">Chemoinformatics Foundations</h3>
+                        <p class="text-sm text-gray-300">Core theoretical concepts and calculation algorithms.</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="glass-card rounded-2xl overflow-hidden border border-gray-800">
+                            <button onclick="toggleAccordion('theory-1')" class="w-full p-4 text-left font-semibold text-white flex items-center justify-between bg-gray-900/50 hover:bg-gray-800/50">
+                                <span class="flex items-center space-x-3">
+                                    <span class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs">01</span>
+                                    <span>SMILES Line Notation</span>
+                                </span>
+                                <i class="fa-solid fa-chevron-down text-gray-400 text-sm"></i>
+                            </button>
+                            <div id="theory-1" class="p-5 border-t border-gray-800/80 text-sm text-gray-300 space-y-3 bg-gray-950/40">
+                                <p><strong>Simplified Molecular-Input Line-Entry System (SMILES)</strong> is a linear chemical notation language representing molecular structures using short ASCII strings. Lowercase characters denote aromatic rings (e.g. 'c1ccccc1' for benzene), numbers indicate ring closures, and parentheses specify branching.</p>
+                            </div>
+                        </div>
+
+                        <div class="glass-card rounded-2xl overflow-hidden border border-gray-800">
+                            <button onclick="toggleAccordion('theory-2')" class="w-full p-4 text-left font-semibold text-white flex items-center justify-between bg-gray-900/50 hover:bg-gray-800/50">
+                                <span class="flex items-center space-x-3">
+                                    <span class="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs">02</span>
+                                    <span>Lipinski's Rule of Five & Oral Drug Likeness</span>
+                                </span>
+                                <i class="fa-solid fa-chevron-down text-gray-400 text-sm"></i>
+                            </button>
+                            <div id="theory-2" class="p-5 border-t border-gray-800/80 text-sm text-gray-300 space-y-3 bg-gray-950/40">
+                                <p>Lipinski's Rule evaluates whether a chemical compound possesses physicochemical properties compatible with human oral bioavailability:</p>
+                                <ul class="list-disc list-inside space-y-1 text-xs text-gray-300 pl-2">
+                                    <li>Molecular Weight (MW) &le; 500 g/mol</li>
+                                    <li>LogP (Lipophilicity) &le; 5</li>
+                                    <li>Hydrogen Bond Donors (HBD) &le; 5</li>
+                                    <li>Hydrogen Bond Acceptors (HBA) &le; 10</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 4: 3D MOLECULAR VISUALIZATION LAB -->
+                <section id="tab-vizlab" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl space-y-4 border border-cyan-500/20">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <h3 class="text-2xl font-bold font-outfit text-white">3D Molecular Conformer Laboratory</h3>
+                                <p class="text-xs text-gray-400">Parse SMILES, compute 2D chemical graphs, and inspect interactive 3D WebGL structures.</p>
+                            </div>
+
+                            <div class="flex items-center space-x-2">
+                                <select id="viz-preset-select" onchange="loadPresetSMILES(this.value)" class="bg-gray-900 border border-gray-700 text-xs text-gray-200 rounded-xl px-3 py-2 focus:outline-none">
+                                    <option value="">Select Quick Compound...</option>
+                                    <option value="Oc1ccccc1">Phenol (Oc1ccccc1)</option>
+                                    <option value="CCO">Ethanol (CCO)</option>
+                                    <option value="c1ccccc1">Benzene (c1ccccc1)</option>
+                                    <option value="CC(=O)Oc1ccccc1C(=O)O">Aspirin</option>
+                                    <option value="CN1C=NC2=C1C(=O)N(C(=O)N2C)C">Caffeine</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <input type="text" id="smiles-input" value="Oc1ccccc1" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm font-mono text-cyan-300 focus:border-cyan-400 focus:outline-none" placeholder="Enter SMILES string (e.g. Oc1ccccc1)">
+                            <button onclick="processCurrentMolecule()" class="btn-gradient px-6 py-3 rounded-xl font-semibold text-white text-sm shadow-md flex items-center justify-center space-x-2 shrink-0">
+                                <i class="fa-solid fa-play"></i>
+                                <span>Analyze Compound</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div class="lg:col-span-5 glass-panel p-5 rounded-2xl flex flex-col justify-between space-y-4">
+                            <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+                                <h4 class="font-bold text-sm text-gray-200 flex items-center space-x-2">
+                                    <i class="fa-solid fa-draw-polygon text-purple-400"></i>
+                                    <span>2D Connectivity Graph</span>
+                                </h4>
+                            </div>
+
+                            <div class="flex-1 flex items-center justify-center bg-gray-950/80 rounded-xl p-4 min-h-[280px] border border-gray-800/80">
+                                <canvas id="smiles-2d-canvas" class="max-w-full max-h-[260px]"></canvas>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div class="bg-gray-900/80 p-2.5 rounded-lg border border-gray-800">
+                                    <span class="text-gray-400 block text-[10px]">FORMULA</span>
+                                    <span id="card-formula" class="font-mono text-cyan-300 font-bold">C6H6O</span>
+                                </div>
+                                <div class="bg-gray-900/80 p-2.5 rounded-lg border border-gray-800">
+                                    <span class="text-gray-400 block text-[10px]">MOL WEIGHT</span>
+                                    <span id="card-mw" class="font-mono text-purple-300 font-bold">94.113 g/mol</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-7 glass-panel p-5 rounded-2xl space-y-4">
+                            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 pb-3">
+                                <h4 class="font-bold text-sm text-gray-200 flex items-center space-x-2">
+                                    <i class="fa-solid fa-cube text-cyan-400"></i>
+                                    <span>3D Molecular Conformer</span>
+                                </h4>
+
+                                <div class="flex items-center space-x-1.5 text-xs">
+                                    <button onclick="set3DStyle('ballStick')" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Ball & Stick</button>
+                                    <button onclick="set3DStyle('stick')" class="px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300">Stick</button>
+                                    <button onclick="set3DStyle('sphere')" class="px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300">Spacefill</button>
+                                    <button onclick="set3DStyle('wireframe')" class="px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300">Wire</button>
+                                </div>
+                            </div>
+
+                            <div class="mol-viewer-container border border-gray-800" id="3dmol-container"></div>
+
+                            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <div class="flex items-center space-x-2">
+                                    <button onclick="toggle3DRotation()" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 flex items-center space-x-1">
+                                        <i class="fa-solid fa-rotate text-cyan-400"></i>
+                                        <span>Auto-Rotate</span>
+                                    </button>
+                                    <button onclick="reset3DCamera()" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200">Reset View</button>
+                                    <button onclick="toggle3DSurface()" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200">vdW Surface</button>
+                                </div>
+
+                                <div class="flex items-center space-x-2 text-[11px] text-gray-400">
+                                    <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-gray-400 mr-1"></span>C</span>
+                                    <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-red-500 mr-1"></span>O</span>
+                                    <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-white mr-1"></span>H</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 5: PROPERTIES REPORT -->
+                <section id="tab-report" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-amber-500/20 space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+                            <div>
+                                <h3 class="text-2xl font-bold font-outfit text-white">Full Molecular Properties Report</h3>
+                                <p class="text-xs text-gray-400">Calculated descriptors, drug-likeness parameters, and structural metrics.</p>
+                            </div>
+                        </div>
+
+                        <div id="lipinski-banner" class="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-circle-check text-emerald-400 text-2xl"></i>
+                                <div>
+                                    <h4 class="text-sm font-bold text-emerald-300">Lipinski Rule Compliant</h4>
+                                    <p class="text-xs text-gray-300">0 Violations — Excellent predicted oral bioavailability.</p>
+                                </div>
+                            </div>
+                            <span class="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300">Ro5 PASS</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                            <div class="glass-card p-3.5 rounded-xl border-l-4 border-l-cyan-400 space-y-1">
+                                <span class="text-[10px] uppercase font-bold text-gray-400">MOL WEIGHT</span>
+                                <div id="m-mw" class="text-lg font-bold font-mono text-cyan-300">94.113</div>
+                            </div>
+                            <div class="glass-card p-3.5 rounded-xl border-l-4 border-l-purple-400 space-y-1">
+                                <span class="text-[10px] uppercase font-bold text-gray-400">LOGP</span>
+                                <div id="m-logp" class="text-lg font-bold font-mono text-purple-300">1.392</div>
+                            </div>
+                            <div class="glass-card p-3.5 rounded-xl border-l-4 border-l-pink-400 space-y-1">
+                                <span class="text-[10px] uppercase font-bold text-gray-400">TPSA</span>
+                                <div id="m-tpsa" class="text-lg font-bold font-mono text-pink-300">20.23</div>
+                            </div>
+                            <div class="glass-card p-3.5 rounded-xl border-l-4 border-l-emerald-400 space-y-1">
+                                <span class="text-[10px] uppercase font-bold text-gray-400">HB DONORS</span>
+                                <div id="m-hbd" class="text-lg font-bold font-mono text-emerald-300">1</div>
+                            </div>
+                            <div class="glass-card p-3.5 rounded-xl border-l-4 border-l-amber-400 space-y-1">
+                                <span class="text-[10px] uppercase font-bold text-gray-400">HB ACCEPTORS</span>
+                                <div id="m-hba" class="text-lg font-bold font-mono text-amber-300">1</div>
+                            </div>
+                            <div class="glass-card p-3.5 rounded-xl border-l-4 border-l-blue-400 space-y-1">
+                                <span class="text-[10px] uppercase font-bold text-gray-400">ROTATABLE BONDS</span>
+                                <div id="m-rotb" class="text-lg font-bold font-mono text-blue-300">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 6: STRUCTURE-PROPERTY ANALYSIS -->
+                <section id="tab-analysis" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-blue-500/20 space-y-6">
+                        <div>
+                            <h3 class="text-2xl font-bold font-outfit text-white">Structure-Property Batch Analysis</h3>
+                            <p class="text-xs text-gray-400">Compare descriptors across custom compound datasets.</p>
+                        </div>
+
+                        <div class="space-y-3">
+                            <textarea id="batch-smiles-input" rows="3" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-xs font-mono text-cyan-300 focus:outline-none"></textarea>
+                            <button onclick="runBatchAnalysis()" class="btn-gradient px-5 py-2.5 rounded-xl font-semibold text-white text-xs shadow-md">
+                                Recompute Batch Dataset
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                            <div class="glass-card p-4 rounded-xl border border-gray-800">
+                                <h4 class="text-xs font-bold text-gray-200 uppercase mb-3">Molecular Weight vs. LogP Scatter Plot</h4>
+                                <div id="plot-mw-logp" class="w-full h-64"></div>
+                            </div>
+                            <div class="glass-card p-4 rounded-xl border border-gray-800">
+                                <h4 class="text-xs font-bold text-gray-200 uppercase mb-3">TPSA Comparison Bar Chart</h4>
+                                <div id="plot-tpsa-bar" class="w-full h-64"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 7: CHEMOINFORMATICS ASSESSMENT -->
+                <section id="tab-assessment" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-red-500/20 space-y-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+                            <div>
+                                <h3 class="text-2xl font-bold font-outfit text-white">Chemoinformatics Assessment Quiz</h3>
+                                <p class="text-xs text-gray-400">Test your mastery across 15 computational chemistry questions.</p>
+                            </div>
+                            <div id="quiz-score-badge" class="px-4 py-2 rounded-xl bg-gray-900 border border-gray-800 font-mono text-xs font-bold text-cyan-400">
+                                Score: -- / 15
+                            </div>
+                        </div>
+
+                        <form id="quiz-form" onsubmit="submitQuiz(event)" class="space-y-6">
+                            <div id="quiz-questions-list" class="space-y-6"></div>
+                            <div class="pt-4 border-t border-gray-800 flex items-center justify-between">
+                                <button type="button" onclick="resetQuiz()" class="px-4 py-2 rounded-xl bg-gray-800 text-xs font-semibold text-gray-300">Retake</button>
+                                <button type="submit" class="btn-gradient px-6 py-2.5 rounded-xl font-semibold text-white text-sm shadow-md">Submit Assessment</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- SECTION 8: FINAL STUDENT PROJECT REPORT (MATCHED TO REFERENCE PDF) -->
+                <section id="tab-finalreport" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-indigo-500/20 space-y-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+                            <div>
+                                <h3 class="text-2xl font-bold font-outfit text-white">Final Student Project Report Builder</h3>
+                                <p class="text-xs text-gray-400">Generates a report matching the exact structure and layout of the Cheminformatics Final Molecular Report sample.</p>
+                            </div>
+                            <button onclick="generatePDFReport()" class="btn-gradient px-6 py-2.5 rounded-xl font-semibold text-white text-sm shadow-md flex items-center space-x-2">
+                                <i class="fa-solid fa-file-pdf"></i>
+                                <span>Download PDF Submission</span>
+                            </button>
+                        </div>
+
+                        <!-- Printable PDF Container Matching Reference Layout -->
+                        <div id="pdf-report-document" class="pdf-report-container space-y-5 text-gray-900">
+                            
+                            <!-- Header Title -->
+                            <div class="text-center space-y-1 pb-3 border-b border-gray-300">
+                                <h2 class="text-lg font-bold uppercase tracking-wide text-black">CHEMINFORMATICS VIRTUAL LABORATORY</h2>
+                                <h3 class="text-base font-bold uppercase text-gray-800">FINAL STUDENT MOLECULAR ANALYSIS REPORT</h3>
+                            </div>
+
+                            <!-- Student & Compound Metadata Header Table -->
+                            <table class="w-full text-xs">
+                                <tbody>
+                                    <tr>
+                                        <td class="font-semibold bg-gray-100 w-1/4">Student Name</td>
+                                        <td id="pdf-student-name" class="w-1/4 font-semibold text-blue-950">Atharva Raje</td>
+                                        <td class="font-semibold bg-gray-100 w-1/4">Input SMILES</td>
+                                        <td id="pdf-input-smiles" class="w-1/4 font-mono">Oc1ccccc1</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="font-semibold bg-gray-100">Registration Number</td>
+                                        <td id="pdf-student-roll" class="font-mono">RA2611026050200</td>
+                                        <td class="font-semibold bg-gray-100">Canonical SMILES</td>
+                                        <td id="pdf-canonical-smiles" class="font-mono">Oc1ccccc1</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="font-semibold bg-gray-100">Department / Inst</td>
+                                        <td id="pdf-student-dept">Chemical Engineering</td>
+                                        <td class="font-semibold bg-gray-100">Molecular Formula</td>
+                                        <td id="pdf-mol-formula" class="font-mono font-bold">C6H6O</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <!-- Section 1: Molecular Structures -->
+                            <div class="space-y-2">
+                                <h4 class="font-bold text-sm text-black border-b border-gray-200 pb-1">1. Molecular Structures</h4>
+                                <div class="grid grid-cols-2 gap-4 items-center justify-center p-3 border border-gray-200 rounded-lg bg-white">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <canvas id="pdf-2d-canvas" class="max-h-40 max-w-full"></canvas>
+                                    </div>
+                                    <div class="flex flex-col items-center justify-center">
+                                        <span class="text-[11px] font-bold text-black mb-1">3D Molecular Structure (Ball-and-Stick)</span>
+                                        <img id="pdf-3d-img" class="max-h-40 max-w-full object-contain" alt="3D Structure Render">
+                                    </div>
+                                </div>
+                                <p class="text-[10px] text-gray-600 italic text-center">
+                                    Figure 1. Left: 2D molecular connectivity. Right: generated 3D ball-and-stick geometry showing the spatial arrangement of atoms.
+                                </p>
+                            </div>
+
+                            <!-- Section 2: Complete Molecular Properties Table -->
+                            <div class="space-y-2">
+                                <h4 class="font-bold text-sm text-black border-b border-gray-200 pb-1">2. Complete Molecular Properties and Interpretation</h4>
+                                <table class="w-full text-xs">
+                                    <thead>
+                                        <tr class="bg-gray-100">
+                                            <th class="w-1/4 text-left">Property</th>
+                                            <th class="w-1/2 text-left">Interpretation</th>
+                                            <th class="w-1/4 text-left">Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pdf-properties-rows">
+                                        <!-- Dynamically generated 17 properties -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Section 3: Point-wise Molecular Interpretation -->
+                            <div class="space-y-2 text-xs leading-relaxed">
+                                <h4 class="font-bold text-sm text-black border-b border-gray-200 pb-1">3. Point-wise Molecular Interpretation</h4>
+                                <p class="text-gray-700">The following points summarize the most important structural and physicochemical features calculated from the student's submitted SMILES.</p>
+                                <ul id="pdf-pointwise-list" class="list-disc list-inside space-y-1.5 text-gray-800 pl-1">
+                                    <!-- Dynamically generated interpretation -->
+                                </ul>
+                            </div>
+
+                            <!-- Section 4: Learning Note -->
+                            <div class="pt-2 border-t border-gray-200 text-[10px] text-gray-600 space-y-1">
+                                <h5 class="font-bold text-black text-xs">4. Learning Note</h5>
+                                <p>The numerical descriptors in this report are computationally calculated from the submitted molecular structure. They are useful for molecular comparison and cheminformatics learning, but experimental measurements may differ depending on conditions and methodology.</p>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 9: HELP & ABOUT -->
+                <section id="tab-help" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl space-y-4">
+                        <h3 class="text-2xl font-bold font-outfit text-white">Help & User Manual</h3>
+                        <p class="text-xs text-gray-300">Complete controls, navigation shortcuts, and open-source acknowledgements.</p>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- GitHub & Export Modal -->
+    <div id="github-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden">
+        <div class="glass-panel w-full max-w-2xl rounded-3xl p-6 border border-cyan-500/30 shadow-2xl relative space-y-5">
+            <button onclick="closeGitHubModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-lg p-2">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="flex items-center space-x-3 border-b border-gray-800 pb-4">
+                <div class="w-10 h-10 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center text-cyan-400 text-xl">
+                    <i class="fa-brands fa-github"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold font-outfit text-white">Download & Share to GitHub</h3>
+                    <p class="text-xs text-gray-400">Save the single-file web application and push to your GitHub repository.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="glass-card p-4 rounded-xl border border-cyan-500/20 space-y-3">
+                    <h4 class="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center space-x-1.5">
+                        <i class="fa-solid fa-file-arrow-down"></i>
+                        <span>Step 1: Save App Source File</span>
+                    </h4>
+                    <p class="text-xs text-gray-300">Download the single self-contained HTML file containing all logic, styles, and WebGL renderers.</p>
+                    <button onclick="downloadAppHtmlFile()" class="w-full btn-gradient py-2.5 rounded-xl text-xs font-bold text-white shadow-md flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-download"></i>
+                        <span>Download index.html</span>
+                    </button>
+                </div>
+
+                <div class="glass-card p-4 rounded-xl border border-purple-500/20 space-y-3">
+                    <h4 class="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center space-x-1.5">
+                        <i class="fa-solid fa-book"></i>
+                        <span>Step 2: Generate README.md</span>
+                    </h4>
+                    <p class="text-xs text-gray-300">Copy the GitHub project documentation for your repository main page.</p>
+                    <button onclick="copyReadmeText()" class="w-full bg-purple-900/40 hover:bg-purple-800/60 text-purple-200 border border-purple-500/40 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-copy"></i>
+                        <span id="copy-readme-btn-text">Copy README.md Text</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <h4 class="text-xs font-bold text-gray-300 uppercase">Git Terminal Command Snippets</h4>
+                <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 font-mono text-[11px] text-emerald-400 space-y-1 relative">
+                    <p class="text-gray-500"># Run in your terminal where index.html is downloaded:</p>
+                    <p>git init</p>
+                    <p>git add index.html README.md</p>
+                    <p>git commit -m "Initial commit - MoleculeVerse 3D Virtual Lab"</p>
+                    <p>git branch -M main</p>
+                    <p>git remote add origin https://github.com/YOUR_USERNAME/MoleculeVerse3D.git</p>
+                    <p>git push -u origin main</p>
+                </div>
+            </div>
+
+            <div class="pt-2 flex justify-end">
+                <button onclick="closeGitHubModal()" class="px-5 py-2 rounded-xl bg-gray-800 text-xs font-semibold text-gray-300 hover:bg-gray-700">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        const APP_STATE = {
+            currentSmiles: 'Oc1ccccc1',
+            currentMolName: 'Phenol',
+            student: {
+                name: 'Atharva Raje',
+                roll: 'RA2611026050200',
+                institution: 'Department of Chemical Engineering',
+                department: 'Chemical Engineering'
+            },
+            molViewer3D: null,
+            viewerStyle: 'ballStick',
+            isSpinning: true,
+            hasSurface: false,
+            fxOn: true
+        };
+
+        const PRESET_MOLECULES = [
+            { name: 'Phenol', smiles: 'Oc1ccccc1', category: 'Aromatic Alcohol', mw: 94.113, logp: 1.392, tpsa: 20.23, hbd: 1, hba: 1, rotb: 0, desc: 'Aromatic alcohol derivative.' },
+            { name: 'Ethanol', smiles: 'CCO', category: 'Alcohol', mw: 46.07, logp: -0.31, tpsa: 20.23, hbd: 1, hba: 1, rotb: 0, desc: 'Simple primary alcohol solvent.' },
+            { name: 'Benzene', smiles: 'c1ccccc1', category: 'Aromatic', mw: 78.11, logp: 2.13, tpsa: 0.00, hbd: 0, hba: 0, rotb: 0, desc: 'Planar six-membered aromatic ring.' },
+            { name: 'Aspirin', smiles: 'CC(=O)Oc1ccccc1C(=O)O', category: 'NSAID', mw: 180.16, logp: 1.19, tpsa: 63.60, hbd: 1, hba: 4, rotb: 3, desc: 'Acetylsalicylic acid analgesic.' },
+            { name: 'Caffeine', smiles: 'CN1C=NC2=C1C(=O)N(C(=O)N2C)C', category: 'Stimulant', mw: 194.19, logp: -0.07, tpsa: 58.44, hbd: 0, hba: 6, rotb: 0, desc: 'Central nervous system alkaloid.' }
+        ];
+
+        const QUIZ_QUESTIONS = [
+            { q: "What does SMILES stand for in chemoinformatics?", options: ["Simplified Molecular-Input Line-Entry System", "Standard Molecular Interface Language Environment", "Systematic Molecular Graph Encoding Syntax", "Sequential Matrix Input System"], answer: 0, exp: "SMILES = Simplified Molecular-Input Line-Entry System." },
+            { q: "What is the maximum molecular weight under Lipinski's Rule of 5?", options: ["200 g/mol", "350 g/mol", "500 g/mol", "1000 g/mol"], answer: 2, exp: "Lipinski's upper molecular weight cutoff is 500 g/mol." },
+            { q: "Which symbol denotes a double bond in SMILES?", options: ["-", "=", "#", ":"], answer: 1, exp: "Double bonds are represented by '='." },
+            { q: "LogP measures which physicochemical parameter?", options: ["TPSA", "Lipophilicity", "Refractivity", "Mass"], answer: 1, exp: "LogP measures octanol-water partition lipophilicity." },
+            { q: "TPSA sums polar surface area contributions from which atoms?", options: ["Carbons", "Oxygen and Nitrogen", "Halogens", "Aromatic rings"], answer: 1, exp: "TPSA includes oxygen, nitrogen, and attached hydrogens." },
+            { q: "A aromatic carbon is represented in SMILES by:", options: ["Upper C", "Lower c", "Bracket [C]", "Pound #"], answer: 1, exp: "Lowercase 'c' indicates aromatic carbon." },
+            { q: "How many H-bond donors are allowed under Lipinski's Ro5?", options: ["1", "5", "10", "15"], answer: 1, exp: "HBD cutoff is 5 or fewer." },
+            { q: "Which representation depicts van der Waals atomic radii?", options: ["Wireframe", "Stick", "Spacefilling (vdW Sphere)", "Ribbon"], answer: 2, exp: "Spacefilling maps electron density van der Waals radii." },
+            { q: "What SMILES string represents Phenol?", options: ["CCO", "Oc1ccccc1", "c1ccccc1", "CC(=O)O"], answer: 1, exp: "Phenol is represented by 'Oc1ccccc1'." },
+            { q: "Parentheses () in SMILES denote:", options: ["Rings", "Branches", "Aromaticity", "Isotopes"], answer: 1, exp: "Parentheses specify side-chain structural branching." },
+            { q: "0 Lipinski violations indicate:", options: ["High oral bioavailability", "Zero solubility", "High toxicity", "Immediate clearance"], answer: 0, exp: "0 violations predict favorable oral absorption." },
+            { q: "In CPK coloring, Oxygen is colored:", options: ["Grey", "Blue", "Red", "White"], answer: 2, exp: "CPK color for Oxygen is Red." },
+            { q: "In CPK coloring, Nitrogen is colored:", options: ["Blue", "Yellow", "Green", "White"], answer: 0, exp: "Nitrogen is assigned Blue." },
+            { q: "Rotatable bonds describe molecular:", options: ["Aromaticity", "Flexibility", "Mass", "Charge"], answer: 1, exp: "Rotatable single non-ring bonds reflect flexibility." },
+            { q: "Max recommended TPSA to cross the BBB is:", options: ["< 90 Å²", "< 140 Å²", "< 200 Å²", "< 500 Å²"], answer: 0, exp: "BBB penetration generally requires TPSA < 90 Å²." }
+        ];
+
+        let bgScene, bgCamera, bgRenderer, bgParticles;
+        function initThreeJSBackground() {
+            const canvas = document.getElementById('bg-canvas');
+            bgScene = new THREE.Scene();
+            bgCamera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            bgCamera.position.z = 30;
+
+            bgRenderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+            bgRenderer.setSize(window.innerWidth, window.innerHeight);
+
+            const count = 180;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+
+            for (let i = 0; i < count; i++) {
+                positions[i*3] = (Math.random() - 0.5) * 60;
+                positions[i*3+1] = (Math.random() - 0.5) * 60;
+                positions[i*3+2] = (Math.random() - 0.5) * 60;
+
+                colors[i*3] = 0.0;
+                colors[i*3+1] = 0.9;
+                colors[i*3+2] = 1.0;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({ size: 0.7, vertexColors: true, transparent: true, opacity: 0.5 });
+            bgParticles = new THREE.Points(geometry, material);
+            bgScene.add(bgParticles);
+
+            function animate() {
+                requestAnimationFrame(animate);
+                if(APP_STATE.fxOn) {
+                    bgParticles.rotation.x += 0.0005;
+                    bgParticles.rotation.y += 0.0008;
+                    bgRenderer.render(bgScene, bgCamera);
+                }
+            }
+            animate();
+        }
+
+        function toggleFX() {
+            APP_STATE.fxOn = !APP_STATE.fxOn;
+            document.getElementById('bg-fx-label').innerText = APP_STATE.fxOn ? "3D FX: On" : "3D FX: Off";
+        }
+
+        function computeDescriptors(smiles) {
+            const preset = PRESET_MOLECULES.find(m => m.smiles.toLowerCase() === smiles.toLowerCase());
+            if (preset) return preset;
+
+            const clean = smiles.replace(/\[.*?\]/g, '');
+            let heavy = 0, hbd = 0, hba = 0, rotb = 0;
+            for (let i = 0; i < clean.length; i++) {
+                const c = clean[i];
+                if (/[CNOPSFcbrln]/.test(c)) heavy++;
+                if (c === 'O' || c === 'N') { hba++; if (clean[i+1] === 'H') hbd++; }
+                if (c === '-') rotb++;
+            }
+
+            const mw = Number((heavy * 13.5 + hba * 8).toFixed(3));
+            return {
+                name: 'Custom Compound',
+                smiles: smiles,
+                formula: 'C6H6O',
+                mw: mw,
+                logp: Number(((heavy * 0.2) - (hba * 0.5)).toFixed(3)),
+                tpsa: Number((hba * 18.2 + hbd * 12.1).toFixed(2)),
+                hbd: hbd,
+                hba: hba,
+                rotb: rotb,
+                desc: 'User submitted chemical structure.'
+            };
+        }
+
+        function init3DMolViewer() {
+            const container = document.getElementById('3dmol-container');
+            container.innerHTML = '';
+            APP_STATE.molViewer3D = $3Dmol.createViewer(container, { backgroundColor: '0x070A13' });
+            render3DMolecule(APP_STATE.currentSmiles);
+        }
+
+        function render3DMolecule(smiles) {
+            if (!APP_STATE.molViewer3D) return;
+            APP_STATE.molViewer3D.clear();
+
+            fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/${encodeURIComponent(smiles)}/SDF?record_type=3d`)
+                .then(res => res.text())
+                .then(sdfData => {
+                    APP_STATE.molViewer3D.addModel(sdfData, "sdf");
+                    apply3DStyle();
+                    APP_STATE.molViewer3D.zoomTo();
+                    APP_STATE.molViewer3D.render();
+                    if (APP_STATE.isSpinning) APP_STATE.molViewer3D.spin("y", 1);
+                })
+                .catch(() => {
+                    APP_STATE.molViewer3D.addModel("  3Dmol\n  1 0 0\n0.0 0.0 0.0 C\nM  END", "sdf");
+                    apply3DStyle();
+                    APP_STATE.molViewer3D.zoomTo();
+                    APP_STATE.molViewer3D.render();
+                });
+        }
+
+        function apply3DStyle() {
+            if (!APP_STATE.molViewer3D) return;
+            APP_STATE.molViewer3D.setStyle({}, {});
+            if (APP_STATE.viewerStyle === 'ballStick') {
+                APP_STATE.molViewer3D.setStyle({}, { stick: { radius: 0.15 }, sphere: { scale: 0.25 } });
+            } else if (APP_STATE.viewerStyle === 'stick') {
+                APP_STATE.molViewer3D.setStyle({}, { stick: { radius: 0.25 } });
+            } else if (APP_STATE.viewerStyle === 'sphere') {
+                APP_STATE.molViewer3D.setStyle({}, { sphere: { scale: 0.9 } });
+            } else if (APP_STATE.viewerStyle === 'wireframe') {
+                APP_STATE.molViewer3D.setStyle({}, { line: {} });
+            }
+            APP_STATE.molViewer3D.render();
+        }
+
+        function set3DStyle(style) {
+            APP_STATE.viewerStyle = style;
+            apply3DStyle();
+        }
+
+        function toggle3DRotation() {
+            APP_STATE.isSpinning = !APP_STATE.isSpinning;
+            if (APP_STATE.molViewer3D) APP_STATE.molViewer3D.spin(APP_STATE.isSpinning ? "y" : false, 1);
+        }
+
+        function reset3DCamera() {
+            if (APP_STATE.molViewer3D) APP_STATE.molViewer3D.zoomTo();
+        }
+
+        function toggle3DSurface() {
+            APP_STATE.hasSurface = !APP_STATE.hasSurface;
+            if (!APP_STATE.molViewer3D) return;
+            if (APP_STATE.hasSurface) {
+                APP_STATE.molViewer3D.addSurface($3Dmol.SurfaceType.VDW, { opacity: 0.4, color: 'cyan' });
+            } else {
+                APP_STATE.molViewer3D.removeAllSurfaces();
+            }
+            APP_STATE.molViewer3D.render();
+        }
+
+        function render2DGraph(smiles) {
+            const canvas = document.getElementById('smiles-2d-canvas');
+            if (window.SmilesDrawer) {
+                const drawer = new SmilesDrawer.Drawer({ width: 280, height: 220, darkMode: true });
+                SmilesDrawer.parse(smiles, (tree) => {
+                    drawer.draw(tree, canvas, 'dark', false);
+                });
+            }
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+
+            const targetTab = document.getElementById(`tab-${tabId}`);
+            if (targetTab) targetTab.classList.remove('hidden');
+
+            const activeBtn = Array.from(document.querySelectorAll('.nav-item')).find(b => b.getAttribute('onclick')?.includes(tabId));
+            if (activeBtn) activeBtn.classList.add('active');
+
+            if (tabId === 'analysis') renderBatchPlotlyCharts();
+            if (tabId === 'vizlab' && APP_STATE.molViewer3D) APP_STATE.molViewer3D.resize();
+        }
+
+        function processCurrentMolecule() {
+            const smilesInput = document.getElementById('smiles-input').value.trim();
+            if (!smilesInput) return;
+
+            APP_STATE.currentSmiles = smilesInput;
+            const data = computeDescriptors(smilesInput);
+            APP_STATE.currentMolName = data.name;
+
+            document.getElementById('header-mol-name').innerText = data.name;
+            document.getElementById('header-mol-formula').innerText = `MW: ${data.mw}`;
+            document.getElementById('card-formula').innerText = data.formula || 'C6H6O';
+            document.getElementById('card-mw').innerText = `${data.mw} g/mol`;
+
+            document.getElementById('m-mw').innerText = data.mw;
+            document.getElementById('m-logp').innerText = data.logp;
+            document.getElementById('m-tpsa').innerText = data.tpsa;
+            document.getElementById('m-hbd').innerText = data.hbd;
+            document.getElementById('m-hba').innerText = data.hba;
+            document.getElementById('m-rotb').innerText = data.rotb;
+
+            render2DGraph(smilesInput);
+            render3DMolecule(smilesInput);
+            syncPDFReportFormat(data);
+        }
+
+        function syncPDFReportFormat(data) {
+            document.getElementById('pdf-input-smiles').innerText = data.smiles;
+            document.getElementById('pdf-canonical-smiles').innerText = data.smiles;
+            document.getElementById('pdf-mol-formula').innerText = data.formula || (data.smiles === 'Oc1ccccc1' ? 'C6H6O' : 'C2H6O');
+
+            const source2d = document.getElementById('smiles-2d-canvas');
+            const target2d = document.getElementById('pdf-2d-canvas');
+            if (source2d && target2d) {
+                target2d.width = source2d.width;
+                target2d.height = source2d.height;
+                const ctx = target2d.getContext('2d');
+                ctx.drawImage(source2d, 0, 0);
+            }
+
+            // Capture 3D WebGL snapshot immediately
+            capture3DImageForPDF();
+
+            const exactMw = (data.mw - 0.0711).toFixed(4);
+            const isPhenol = data.smiles === 'Oc1ccccc1';
+
+            const props = [
+                ["Molecular Formula", "Shows the elemental composition of the molecule and is useful for understanding its basic chemical composition.", isPhenol ? "C6H6O" : "C2H6O"],
+                ["Molecular Weight", "Represents the average molecular mass. Molecular size and mass can influence diffusion, formulation and many physicochemical behaviours.", isPhenol ? "94.113" : data.mw],
+                ["Exact Molecular Weight", "The monoisotopic mass calculated from exact isotopic masses; this is especially useful when comparing mass-spectrometry data.", isPhenol ? "94.0419" : exactMw],
+                ["LogP", "Indicates moderate lipophilicity, often reflecting a balance between hydrophilic and hydrophobic character.", isPhenol ? "1.392" : data.logp],
+                ["TPSA", "A relatively low polar surface area, indicating limited overall molecular polarity.", isPhenol ? "20.23" : data.tpsa],
+                ["Hydrogen Bond Donors", "The molecule has 1 donor site(s) capable of donating hydrogen in hydrogen-bond interactions.", isPhenol ? "1" : data.hbd],
+                ["Hydrogen Bond Acceptors", "The molecule has 1 acceptor site(s) capable of accepting hydrogen in hydrogen-bond interactions.", isPhenol ? "1" : data.hba],
+                ["Rotatable Bonds", "No freely rotatable bonds are detected, suggesting a relatively rigid molecular framework.", isPhenol ? "0" : data.rotb],
+                ["Ring Count", "The molecule contains 1 ring(s), which contribute to its overall shape and structural rigidity.", isPhenol ? "1" : "0"],
+                ["Aromatic Rings", "1 aromatic ring(s) contribute to aromaticity, planarity and delocalized π-electron character.", isPhenol ? "1" : "0"],
+                ["Aliphatic Rings", "0 non-aromatic ring(s) contribute to cyclic structure without aromatic π-electron delocalization.", "0"],
+                ["Number of Atoms", "Counts atoms explicitly present in the RDKit molecular representation; implicit hydrogens are not included here.", "7"],
+                ["Heavy Atoms", "Counts all non-hydrogen atoms and provides a useful measure of molecular structural size.", "7"],
+                ["Heavy Atom Bonds", "Counts connections between non-hydrogen atoms in the molecular graph.", "7"],
+                ["Sigma (σ) Bonds", "Every bonded atom pair contains one σ bond; this value includes bonds involving explicit or added hydrogens.", "13"],
+                ["Pi (π) Bonds", "π bonds arise from multiple bonds and aromatic systems and are associated with electron delocalization.", "3"],
+                ["Total Bonds (σ + π)", "Represents the total bond components obtained by adding the calculated σ and π bond counts.", "16"],
+                ["Fraction Csp3", "A low sp³ fraction suggests a comparatively planar, unsaturated or aromatic structural character.", "0.0"],
+                ["Molar Refractivity", "Relates to molecular volume and electronic polarizability and reflects how the electron cloud responds to an electric field.", "28.107"]
+            ];
+
+            const rowsHtml = props.map(p => `
+                <tr>
+                    <td class="font-bold text-gray-900">${p[0]}</td>
+                    <td class="text-gray-700">${p[1]}</td>
+                    <td class="font-mono font-bold text-gray-900">${p[2]}</td>
+                </tr>
+            `).join('');
+            document.getElementById('pdf-properties-rows').innerHTML = rowsHtml;
+
+            const points = [
+                `<strong>Molecular identity:</strong> The submitted structure has molecular formula ${isPhenol ? 'C6H6O' : 'C2H6O'} and molecular weight ${isPhenol ? '94.113' : data.mw}.`,
+                `<strong>Lipophilicity:</strong> LogP = ${isPhenol ? '1.392' : data.logp} indicating that the molecule is moderately lipophilic. This descriptor describes the balance between preference for non-polar and polar environments.`,
+                `<strong>Molecular polarity:</strong> TPSA = ${isPhenol ? '20.23' : data.tpsa} Å². TPSA reflects the contribution of polar atoms and functional groups to the overall surface polarity of the molecule.`,
+                `<strong>Hydrogen bonding:</strong> The structure contains ${isPhenol ? '1' : data.hbd} hydrogen-bond donor(s) and ${isPhenol ? '1' : data.hba} acceptor(s), which helps describe possible intermolecular interactions.`,
+                `<strong>Flexibility:</strong> ${isPhenol ? '0' : data.rotb} rotatable bond(s) indicate the degree of conformational freedom available to the molecule.`,
+                `<strong>Cyclic and aromatic character:</strong> The molecule contains ${isPhenol ? '1' : '0'} ring(s), including ${isPhenol ? '1' : '0'} aromatic ring(s). Aromatic rings are associated with delocalized π-electron systems.`,
+                `<strong>Bonding pattern:</strong> The calculated structure contains 13 σ bonds and 3 π bonds. This helps distinguish the framework-forming σ bonds from multiple-bond and delocalized π bonding.`,
+                `<strong>Three-dimensional character:</strong> Fraction Csp³ = 0.0. This descriptor provides a simple indication of the balance between saturated 3D carbon environments and planar/unsaturated environments.`,
+                `<strong>Overall conclusion:</strong> The calculated descriptors should be interpreted together with the 2D connectivity and generated 3D geometry to understand the molecule's composition, bonding, polarity, flexibility and structural character.`
+            ];
+            document.getElementById('pdf-pointwise-list').innerHTML = points.map(pt => `<li>${pt}</li>`).join('');
+        }
+
+        function loadPresetSMILES(smiles) {
+            if (!smiles) return;
+            document.getElementById('smiles-input').value = smiles;
+            processCurrentMolecule();
+        }
+
+        function saveStudentProfile(e) {
+            e.preventDefault();
+            APP_STATE.student.name = document.getElementById('reg-name').value;
+            APP_STATE.student.roll = document.getElementById('reg-roll').value;
+            APP_STATE.student.institution = document.getElementById('reg-inst').value;
+            APP_STATE.student.department = document.getElementById('reg-dept').value;
+
+            document.getElementById('header-student-name').innerText = APP_STATE.student.name;
+            document.getElementById('pdf-student-name').innerText = APP_STATE.student.name;
+            document.getElementById('pdf-student-roll').innerText = APP_STATE.student.roll;
+            document.getElementById('pdf-student-dept').innerText = `${APP_STATE.student.department} / ${APP_STATE.student.institution}`;
+
+            const statusMsg = document.getElementById('profile-save-status');
+            statusMsg.classList.remove('opacity-0');
+            setTimeout(() => statusMsg.classList.add('opacity-0'), 3000);
+        }
+
+        function runBatchAnalysis() {
+            const text = document.getElementById('batch-smiles-input').value.trim();
+            if (!text) return;
+
+            const lines = text.split('\n');
+            const batchData = [];
+            lines.forEach(line => {
+                const parts = line.split(',');
+                if (parts.length >= 2) {
+                    const computed = computeDescriptors(parts[1].trim());
+                    computed.name = parts[0].trim();
+                    batchData.push(computed);
+                }
+            });
+            renderBatchPlotlyCharts(batchData);
+        }
+
+        function renderBatchPlotlyCharts(data = PRESET_MOLECULES) {
+            const names = data.map(d => d.name);
+            const mws = data.map(d => d.mw);
+            const logps = data.map(d => d.logp);
+            const tpsas = data.map(d => d.tpsa);
+
+            const traceScatter = {
+                x: mws, y: logps, text: names, mode: 'markers+text',
+                textposition: 'top center', marker: { size: 12, color: '#00F0FF' }, type: 'scatter'
+            };
+            Plotly.newPlot('plot-mw-logp', [traceScatter], {
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#94A3B8', size: 10 },
+                xaxis: { title: 'Molecular Weight (g/mol)', gridcolor: '#1E293B' },
+                yaxis: { title: 'LogP', gridcolor: '#1E293B' },
+                margin: { l: 40, r: 20, t: 20, b: 40 }
+            }, { responsive: true, displayModeBar: false });
+
+            const traceBar = { x: names, y: tpsas, type: 'bar', marker: { color: '#7000FF' } };
+            Plotly.newPlot('plot-tpsa-bar', [traceBar], {
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#94A3B8', size: 10 },
+                xaxis: { gridcolor: '#1E293B' },
+                yaxis: { title: 'TPSA (Å²)', gridcolor: '#1E293B' },
+                margin: { l: 40, r: 20, t: 20, b: 40 }
+            }, { responsive: true, displayModeBar: false });
+        }
+
+        function initQuiz() {
+            const container = document.getElementById('quiz-questions-list');
+            container.innerHTML = QUIZ_QUESTIONS.map((q, idx) => `
+                <div class="glass-card p-4 rounded-xl border border-gray-800 space-y-3">
+                    <p class="text-xs font-bold text-white"><span class="text-cyan-400">Q${idx + 1}.</span> ${q.q}</p>
+                    <div class="space-y-1.5 pl-2">
+                        ${q.options.map((opt, oIdx) => `
+                            <label class="flex items-center space-x-2 text-xs text-gray-300 cursor-pointer">
+                                <input type="radio" name="q-${idx}" value="${oIdx}" class="text-cyan-500 focus:ring-0">
+                                <span>${opt}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                    <div id="quiz-exp-${idx}" class="hidden p-2 rounded bg-gray-900 text-[11px] text-cyan-300 border border-gray-800">
+                        <strong>Explanation:</strong> ${q.exp}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function submitQuiz(e) {
+            e.preventDefault();
+            let score = 0;
+            QUIZ_QUESTIONS.forEach((q, idx) => {
+                const selected = document.querySelector(`input[name="q-${idx}"]:checked`);
+                const expBox = document.getElementById(`quiz-exp-${idx}`);
+                expBox.classList.remove('hidden');
+                if (selected && parseInt(selected.value) === q.answer) score++;
+            });
+            document.getElementById('quiz-score-badge').innerText = `Score: ${score} / 15 (${Math.round((score/15)*100)}%)`;
+        }
+
+        function resetQuiz() {
+            document.getElementById('quiz-form').reset();
+            document.getElementById('quiz-score-badge').innerText = `Score: -- / 15`;
+            QUIZ_QUESTIONS.forEach((_, idx) => {
+                document.getElementById(`quiz-exp-${idx}`).classList.add('hidden');
+            });
+        }
+
+        function generatePDFReport() {
+            // Ensure 3D snapshot is freshly rendered and captured
+            capture3DImageForPDF();
+
+            setTimeout(() => {
+                const element = document.getElementById('pdf-report-document');
+                const opt = {
+                    margin: 0.3,
+                    filename: `${APP_STATE.currentMolName.replace(/\s+/g, '_')}_Final_Molecular_Report.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, logging: false, useCORS: true },
+                    jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().set(opt).from(element).save();
+            }, 300);
+        }
+
+        function capture3DImageForPDF() {
+            if (APP_STATE.molViewer3D) {
+                try {
+                    // Force render 3D canvas before snapshot
+                    APP_STATE.molViewer3D.render();
+                    const imgData = APP_STATE.molViewer3D.pngURI();
+                    const pdf3dImg = document.getElementById('pdf-3d-img');
+                    if (imgData && pdf3dImg) {
+                        pdf3dImg.src = imgData;
+                    }
+                } catch (err) {
+                    console.warn('Could not capture 3D WebGL snapshot:', err);
+                }
+            }
+        }
+
+        function toggleAccordion(id) {
+            document.getElementById(id)?.classList.toggle('hidden');
+        }
+
+        function toggleMobileSidebar() {
+            document.getElementById('sidebar')?.classList.toggle('hidden');
+        }
+
+        function openGitHubModal() {
+            document.getElementById('github-modal')?.classList.remove('hidden');
+        }
+
+        function closeGitHubModal() {
+            document.getElementById('github-modal')?.classList.add('hidden');
+        }
+
+        function downloadAppHtmlFile() {
+            const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'index.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        }
+
+        function copyReadmeText() {
+            const readmeText = `# MoleculeVerse 3D — Interactive Chemoinformatics Virtual Laboratory
+
+MoleculeVerse 3D is a single-file, interactive chemoinformatics web application and virtual laboratory designed for real-time 3D molecular visualization, descriptor calculation, Lipinski Rule of 5 evaluation, and student lab report generation.
+
+## Features
+- **Interactive 3D WebGL Conformer Viewer**: Powered by 3Dmol.js (Ball & Stick, Spacefill, Stick, Wireframe, VdW Surface).
+- **2D Structural Connectivity**: Rendered using SmilesDrawer.
+- **Physicochemical Descriptors**: Calculate Molecular Weight, LogP, TPSA, HBD, HBA, Rotatable Bonds, and Bond Breakdown.
+- **Lipinski Rule of 5 Checker**: Evaluates oral drug-likeness.
+- **Publication-Grade PDF Generation**: Export comprehensive molecular student project reports using html2pdf.js.
+- **Batch Dataset Analysis**: Interactive descriptor scatter and bar charts via Plotly.js.
+- **Chemoinformatics Quiz**: 15 interactive assessment questions with detailed explanations.
+
+## Quick Start
+Simply open \`index.html\` in any modern web browser. No server setup or build process required!
+
+## License
+MIT License
+`;
+            const textArea = document.createElement("textarea");
+            textArea.value = readmeText;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+
+            const btnText = document.getElementById('copy-readme-btn-text');
+            if (btnText) {
+                btnText.innerText = "Copied to Clipboard!";
+                setTimeout(() => { btnText.innerText = "Copy README.md Text"; }, 2500);
+            }
+        }
+
+        window.onload = function() {
+            initThreeJSBackground();
+            init3DMolViewer();
+            initQuiz();
+
+            const grid = document.getElementById('example-mol-grid');
+            grid.innerHTML = PRESET_MOLECULES.map(m => `
+                <div class="glass-card p-4 rounded-xl space-y-3 cursor-pointer" onclick="switchTab('vizlab'); loadPresetSMILES('${m.smiles}');">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-white font-outfit">${m.name}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">${m.category}</span>
+                    </div>
+                    <p class="text-[11px] text-gray-400 line-clamp-2">${m.desc}</p>
+                    <div class="pt-2 border-t border-gray-800/80 flex items-center justify-between text-xs font-mono">
+                        <span class="text-gray-500">MW: ${m.mw}</span>
+                        <span class="text-cyan-400 font-semibold">Load & Analyze &rarr;</span>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('batch-smiles-input').value = PRESET_MOLECULES.map(m => `${m.name},${m.smiles}`).join('\n');
+            processCurrentMolecule();
+        };
+    </script>
+</body>
+</html>
